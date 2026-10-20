@@ -1,0 +1,263 @@
+{
+  "name": "Clinic Bot Eval",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        0
+      ],
+      "id": "019fd903-6cb2-4718-8780-247937f33d40",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "fileSelector": "D:/projects/clinic-telegram-bot/clinic_info.pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -432,
+        -64
+      ],
+      "id": "0cac89de-cb83-46be-911e-c11df2bb4a09",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -288,
+        80
+      ],
+      "id": "f12e5f2a-3ce7-4f25-b001-8dd61fbd0122",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "jsCode": "const tests = [\n  { q: \"When was the clinic established?\", expect: [\"2012\"] },\n  { q: \"Are you open on Saturday?\", expect: [\"10:00\", \"10 AM\", \"10am\"] },\n  { q: \"What are your opening hours during Ramadan?\", expect: [\"11:00\", \"11 AM\", \"11am\"] },\n  { q: \"My face is swollen at midnight, who can I call?\", expect: [\"0100-123-4567\"] },\n  { q: \"My son's tooth fell out after a fall, what should I do with it?\", expect: [\"milk\"] },\n  { q: \"Which dentist should I see for a root canal?\", expect: [\"Youssef\"] },\n  { q: \"How often should a smoker get a cleaning?\", expect: [\"4 months\", \"four months\"] },\n  { q: \"What kind of crown is best for front teeth?\", expect: [\"zirconia\"] },\n  { q: \"Can I whiten my teeth while pregnant?\", expect: [\"not suitable\", \"not recommended\", \"cannot\", \"can't\", \"should not\"] },\n  { q: \"How long do braces take?\", expect: [\"24 months\"] },\n  { q: \"How much is a panoramic X-ray?\", expect: [\"450\"] },\n  { q: \"How much does a root canal on a back tooth cost?\", expect: [\"2,500\", \"2500\"] },\n  { q: \"Do university students get a discount?\", expect: [\"10%\", \"10 %\", \"10 percent\"] },\n  { q: \"Can I pay for my implant in monthly installments?\", expect: [\"6 or 12\", \"12 months\"] },\n  { q: \"Does insurance cover veneers?\", expect: [\"not cover\", \"don't cover\", \"do not cover\", \"cosmetic\"] },\n  { q: \"What happens if I miss my appointment without cancelling?\", expect: [\"100\"] },\n  { q: \"Can I drink through a straw after having a tooth pulled?\", expect: [\"dry socket\", \"24 hours\"] },\n  { q: \"When can I eat after getting a filling?\", expect: [\"2 to 3\", \"2-3\", \"2–3\", \"numbness\"] },\n  { q: \"Can I get laughing gas, and how much does it cost?\", expect: [\"600\"] },\n  { q: \"What is the closest metro station?\", expect: [\"Dokki\"] },\n];\n\nreturn tests.map((t, i) => ({\n  json: { id: i + 1, question: t.q, expected: t.expect },\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        -32
+      ],
+      "id": "75ba090c-1c16-4bb7-a01f-1acce3d1aead",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.question }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are the friendly assistant of Smile Dental Clinic in Dokki, Giza, Egypt, answering patients on Telegram.\n\nRULES:\n1. Answer ONLY using the clinic handbook below. Never use outside knowledge about prices, hours or policies.\n2. If the answer is not in the handbook, say you don't know and ask the patient to call or WhatsApp 0100-123-4567.\n3. For emergencies (severe pain, face swelling, bleeding, knocked-out tooth), always give the 24-hour hotline 0100-123-4567 first.\n4. Prices are in Egyptian Pounds (EGP).\n5. Keep answers short and clear (2 to 4 sentences).\n6. Reply in the same language the patient uses (Arabic or English).\n\n===== CLINIC HANDBOOK =====\n{{ $('Extract from File').first().json.text }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        48,
+        -32
+      ],
+      "id": "8637a142-4008-4c7b-a882-dcc11e3a8328",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        32,
+        128
+      ],
+      "id": "de146243-3cfa-46a6-a777-c13ef03ad84b",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "m1CsjoJ2bBxtyhoq",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const verdicts = $input.all();\nconst answers = $('Basic LLM Chain').all();\nconst tests = $('Code in JavaScript').all();\nlet kwPassed = 0, judgePassed = 0, agree = 0;\n\nconst rows = verdicts.map((v, i) => {\n  const t = tests[i].json;\n  const answer = answers[i].json.text || \"\";\n  const verdict = (v.json.text || \"\").trim();\n  const hit = t.expected.find(e => answer.toLowerCase().includes(e.toLowerCase()));\n  const keyword_pass = Boolean(hit);\n  const judge_pass = verdict.toUpperCase().startsWith(\"PASS\");\n  const judge_reason = verdict.split(\"\\n\").slice(1).join(\" \").trim();\n  if (keyword_pass) kwPassed++;\n  if (judge_pass) judgePassed++;\n  if (keyword_pass === judge_pass) agree++;\n  return { json: { id: t.id, question: t.question, answer, keyword_pass, judge_pass, judge_reason, agree: keyword_pass === judge_pass } };\n});\n\nconst n = verdicts.length;\nrows.push({ json: { id: \"TOTAL\", question: `keyword: ${kwPassed}/${n} | judge: ${judgePassed}/${n} | agree: ${agree}/${n}` } });\n\nreturn rows;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        224
+      ],
+      "id": "dab2982c-dadb-4a62-9d1e-2fa810a79290",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Question: {{ $('Code in JavaScript').item.json.question }}\n\nBot answer: {{ $json.text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are a strict grader for a dental clinic chatbot. You will get the clinic handbook, a patient question, and the bot's answer.\n\nDecide if the answer is correct:\n1. Every fact in the answer must match the handbook.\n2. The answer must actually answer the question.\n3. The answer must not invent anything that is not in the handbook.\nDifferent wording is fine.\n\nReply in exactly two lines:\nLine 1: PASS or FAIL\nLine 2: a short reason (max 20 words)\n\n===== CLINIC HANDBOOK =====\n{{ $('Extract from File').first().json.text }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        368,
+        -16
+      ],
+      "id": "805d9780-4110-456c-aedb-50584e8a8e8e",
+      "name": "Judge"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        288,
+        112
+      ],
+      "id": "0246db64-017d-476c-b0aa-14bd28ddebe8",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "m1CsjoJ2bBxtyhoq",
+          "name": "OpenRouter account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Judge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Judge",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "462ad5ca-4d2f-40ad-9585-493df7d18a56",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "73408e1266087f86b8771170be83acf536133d41b997707028dcf2f5f66a9ff7"
+  },
+  "nodeGroups": [],
+  "id": "a16P4KL3qyos4MEP",
+  "tags": []
+}

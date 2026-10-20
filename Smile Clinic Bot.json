@@ -1,0 +1,296 @@
+{
+  "name": "Smile Clinic Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -448,
+        -16
+      ],
+      "id": "8d255b57-a774-4ef2-ac35-22257a205500",
+      "name": "Telegram Trigger",
+      "webhookId": "a4781662-7eea-4465-abaa-75a5c28d4461",
+      "credentials": {
+        "telegramApi": {
+          "id": "yXZ1Xs2vL26c91Tn",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output.replace('[HANDOFF]', '').trim() }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        352,
+        -80
+      ],
+      "id": "4ad59d28-ba87-42e5-b06f-f061da879f07",
+      "name": "Send a text message",
+      "webhookId": "77507ccb-fd8e-45ea-bab4-ef3ff647bd8e",
+      "credentials": {
+        "telegramApi": {
+          "id": "yXZ1Xs2vL26c91Tn",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileSelector": "D:/projects/clinic-telegram-bot/clinic_info.pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        -304,
+        -128
+      ],
+      "id": "774529cd-bd7e-424c-ba3b-cd5f0b9fd86a",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -176,
+        -32
+      ],
+      "id": "59ba4699-343e-4612-9ab4-5d830e3be481",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Telegram Trigger').item.json.message.text }}",
+        "options": {
+          "systemMessage": "=You are the friendly assistant of Smile Dental Clinic in Dokki, Giza, Egypt, answering patients on Telegram.\n\nRULES:\n1. Answer ONLY using the clinic handbook below. Never use outside knowledge about prices, hours or policies.\n2. If the answer is not in the handbook, say you don't know and ask the patient to call or WhatsApp 0100-123-4567.\n3. For emergencies (severe pain, face swelling, bleeding, knocked-out tooth), always give the 24-hour hotline 0100-123-4567 first.\n4. Prices are in Egyptian Pounds (EGP).\n5. Keep answers short and clear (2 to 4 sentences).\n6. Reply in the same language the patient uses (Arabic or English).\n7. If the answer is not in the handbook, OR the patient asks to talk to a human, OR it is an emergency, start your reply with the exact tag [HANDOFF] followed by a space, then your normal reply.\n\n===== CLINIC HANDBOOK =====\n{{ $('Extract from File').item.json.text }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -32,
+        -96
+      ],
+      "id": "c25bdac1-8135-4294-b4d4-084814f473ab",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        112
+      ],
+      "id": "2449f9b9-033c-4893-9130-7eca18228945",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "m1CsjoJ2bBxtyhoq",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        64,
+        96
+      ],
+      "id": "c14f2758-05aa-4ca1-b830-e22109c61207",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f2f202c7-956f-436b-a490-3cf54dfc90f2",
+              "leftValue": "={{ $('AI Agent').item.json.output }}",
+              "rightValue": "[HANDOFF]",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        224,
+        112
+      ],
+      "id": "ef657aa9-e582-4fcc-a3fc-785ffe3e2cc6",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "chatId": "YOUR_RECEPTIONIST_CHAT_ID",
+        "text": "=🔔 Patient needs a human\nName: {{ $('Telegram Trigger').item.json.message.from.first_name }}\nChat ID: {{ $('Telegram Trigger').item.json.message.chat.id }}\nQuestion: {{ $('Telegram Trigger').item.json.message.text }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        512,
+        96
+      ],
+      "id": "2e90cb2b-dab1-49c3-8a39-1c1865ac7ad7",
+      "name": "Notify receptionist",
+      "webhookId": "4f98a307-588a-48b6-bba8-afb93112252d",
+      "credentials": {
+        "telegramApi": {
+          "id": "yXZ1Xs2vL26c91Tn",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Notify receptionist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6b307a61-6cf1-4bb7-ba7a-62edce5f5c89",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "73408e1266087f86b8771170be83acf536133d41b997707028dcf2f5f66a9ff7"
+  },
+  "nodeGroups": [],
+  "id": "OBnpdsPGFCJA9iop",
+  "tags": []
+}

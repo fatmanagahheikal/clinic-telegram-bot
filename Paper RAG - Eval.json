@@ -1,0 +1,143 @@
+{
+  "name": "Paper RAG - Eval",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        -32
+      ],
+      "id": "407e8736-ec35-4338-9aa8-9aed4181f409",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "const tests = [\n  { q: \"How many people die from burns every year?\", a: \"180,000\" },\n  { q: \"How was the spectroscopy model validated?\", a: \"five-fold stratified cross-validation\" },\n  { q: \"Who funded this research?\", a: \"Scientists for Next Generation\" },\n  { q: \"How many burn conditions were studied?\", a: \"five burn conditions\" },\n  { q: \"How accurate are burn specialists when they judge burn depth by eye?\", a: \"diagnostic accuracies of only\" },\n  { q: \"Why do deeper burns look cooler on thermal images?\", a: \"vascular destruction\" },\n  { q: \"Did the study fuse the two modalities into one model?\", a: \"multimodal fusion is beyond the scope\" },\n  { q: \"What environmental factors affect thermal image quality?\", a: \"humidity, and airflow\" },\n  { q: \"Why might transfer learning from ImageNet models not work well for thermal data?\", a: \"natural images differ considerably\" },\n  { q: \"Which model did previous work use to segment and grade burns at the same time?\", a: \"DenseMask RCNN\" },\n  { q: \"What is a practical limitation of DRS systems?\", a: \"limited spatial coverage\" },\n  { q: \"Which optical imaging techniques did previous multimodal studies combine?\", a: \"SFDI and LSI\" },\n  { q: \"From which part of the pig were the skin samples taken?\", a: \"paravertebral\" },\n  { q: \"Why is pig skin a good substitute for human skin?\", a: \"widely recognized as an appropriate model\" },\n  { q: \"How long was the hot probe applied to create a level 3 burn?\", a: \"Level 3 (10 s)\" },\n  { q: \"How much weight pressed the heating probe onto the skin?\", a: \"200 g\" },\n  { q: \"Did you confirm the burn depths using tissue histology?\", a: \"histopathological analysis was not performed\" },\n  { q: \"What are the weaknesses of using dead pig skin instead of living tissue?\", a: \"absence of blood perfusion\" },\n  { q: \"What temperature was the heating element kept at?\", a: \"stabilized temperature of 160\" },\n  { q: \"What kind of laser was used as the light source?\", a: \"continuous-wave laser\" },\n  { q: \"Why did the DRS system use one wavelength instead of a full spectrum?\", a: \"time-dependent changes\" },\n  { q: \"How many frames per second did the thermal camera record?\", a: \"25 Hz\" },\n  { q: \"Which spectrometer was used for the reflectance measurements?\", a: \"Aurora 4000\" },\n  { q: \"How did you avoid data leakage between training and testing?\", a: \"partitioned at the specimen level\" },\n  { q: \"Was data augmentation also applied to the test images?\", a: \"applied only to the training dataset\" },\n  { q: \"How was each reflectance measurement fed into the model?\", a: \"one-dimensional input\" },\n  { q: \"How was the spectroscopy data organized as a table?\", a: \"represents an individual measurement\" },\n  { q: \"Which classical machine learning methods were mentioned as alternatives?\", a: \"XGBoost\" },\n  { q: \"How many epochs was the thermal image model trained for?\", a: \"10 epochs\" },\n  { q: \"Which loss function was used for the thermal CNN?\", a: \"sparse categorical cross-entropy\" },\n  { q: \"What learning rate schedule was used for the DRS model?\", a: \"cosine-decay-restarts\" },\n  { q: \"What GPU were the experiments run on?\", a: \"Tesla T4\" },\n  { q: \"Did the thermal model ever mix up mild burns with the most severe burns?\", a: \"non-adjacent burn levels\" },\n  { q: \"Was the thermal CNN overfitting?\", a: \"no evidence of significant overfitting\" },\n  { q: \"Which class had the lowest precision in the thermal model?\", a: \"precision decreased to 0.88\" },\n  { q: \"What was the most common mistake made by the spectroscopy model?\", a: \"s4_L3 was misclassified as s1_L3\" },\n  { q: \"What training accuracy did the 1D-CNN reach?\", a: \"approximately 95%\" },\n  { q: \"Is the thermal model statistically proven to be better than the DRS model?\", a: \"statistical significance test\" },\n  { q: \"How many classes had an AUC below 1.00 for the DRS model?\", a: \"Only three classes\" },\n  { q: \"Should thermal imaging replace DRS?\", a: \"rather than competing\" },\n];\n\nreturn tests.map((t, i) => ({ json: { id: i + 1, question: t.q, answer: t.a } }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -96,
+        -32
+      ],
+      "id": "4ed2e877-d225-45dc-958a-395571d3f4b0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "memoryKey": {
+          "__rl": true,
+          "value": "paper_rag",
+          "mode": "list",
+          "cachedResultName": "paper_rag"
+        },
+        "prompt": "={{ $json.question }}",
+        "topK": 3
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        48,
+        -32
+      ],
+      "id": "89424494-f7db-4a3f-ad2f-eb616f503ab5",
+      "name": "Simple Vector Store"
+    },
+    {
+      "parameters": {
+        "model": "bge-small-en-v1.5-embed",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        95.078125
+      ],
+      "id": "3bfb1a71-a741-4376-a499-c898940f627a",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "kqNfIOsTIovOqjKx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const tests = $('Code in JavaScript').all();\nconst results = $input.all();\nconst norm = s => (s || \"\").toLowerCase().replace(/[\\s\\-‐‑–]/g, \"\");\n\nlet hit1 = 0, hit3 = 0;\nconst rows = tests.map((t, i) => {\n  const chunks = results.slice(i * 3, i * 3 + 3).map(r => r.json.document.pageContent);\n  const ans = norm(t.json.answer);\n  const rank = chunks.findIndex(c => norm(c).includes(ans)) + 1;\n  if (rank === 1) hit1++;\n  if (rank >= 1) hit3++;\n  return { json: { id: t.json.id, question: t.json.question, answer: t.json.answer, rank: rank || \"miss\" } };\n});\n\nconst n = tests.length;\nrows.push({ json: { id: \"TOTAL\", question: `Hit@1: ${hit1}/${n} = ${Math.round(hit1 / n * 100)}% | Hit@3: ${hit3}/${n} = ${Math.round(hit3 / n * 100)}%` } });\n\nreturn rows;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -32
+      ],
+      "id": "49dde7a5-48f7-4662-841e-87d59f2c9e2c",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Simple Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Simple Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "dde2da61-6bd9-4029-8d51-51649c8073e6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "73408e1266087f86b8771170be83acf536133d41b997707028dcf2f5f66a9ff7"
+  },
+  "nodeGroups": [],
+  "id": "zld9GNS8NxLJfEbr",
+  "tags": []
+}

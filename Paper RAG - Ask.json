@@ -1,0 +1,189 @@
+{
+  "name": "Paper RAG - Ask",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -256,
+        -64
+      ],
+      "id": "cd272f00-2a6c-4ade-80fc-aa1553463da8",
+      "name": "When chat message received",
+      "webhookId": "25ed0abb-1cfd-4885-927c-e89cd2986a6d"
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "memoryKey": {
+          "__rl": true,
+          "value": "paper_rag",
+          "mode": "list",
+          "cachedResultName": "paper_rag"
+        },
+        "prompt": "={{ $json.chatInput }}",
+        "topK": 3
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        -96,
+        -48
+      ],
+      "id": "ceb70629-a1b7-4dbf-8233-dafbe928f977",
+      "name": "Simple Vector Store"
+    },
+    {
+      "parameters": {
+        "model": "bge-small-en-v1.5-embed",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        96,
+        64
+      ],
+      "id": "bc43d9f7-18cb-4893-9fe5-e2bf098c4994",
+      "name": "Embeddings OpenAI",
+      "credentials": {
+        "openAiApi": {
+          "id": "kqNfIOsTIovOqjKx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const chunks = $input.all().map((item, i) => {\n  const d = item.json.document;\n  const lines = d.metadata?.loc?.lines;\n  const where = lines ? `lines ${lines.from}-${lines.to}` : \"unknown\";\n  return `[Chunk ${i + 1} | ${where}]\\n${d.pageContent}`;\n});\n\nreturn [{\n  json: {\n    question: $('When chat message received').first().json.chatInput,\n    context: chunks.join(\"\\n\\n---\\n\\n\"),\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        192,
+        -64
+      ],
+      "id": "1fc2a3f8-4b2a-47d4-8562-38ebb0e70f6e",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.question }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You answer questions about a research paper using ONLY the context chunks below.\n\nRULES:\n1. If the answer is not in the chunks, reply exactly: I don't know.\n2. Mention which chunk you used, for example: (Source: Chunk 2).\n3. Keep the answer short (2 to 4 sentences).\n\n===== CONTEXT =====\n{{ $json.context }}"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        368,
+        -64
+      ],
+      "id": "0dd4b2b1-38c1-4168-a81a-4e7aa374f679",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "options": {
+          "maxTokens": 1000,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        304,
+        64
+      ],
+      "id": "de78e948-d852-43d5-be4b-006de67ba71c",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "m1CsjoJ2bBxtyhoq",
+          "name": "OpenRouter account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Simple Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings OpenAI": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Simple Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Vector Store": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "6ea9fd08-6255-4e65-a5e3-b02ed3369188",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "73408e1266087f86b8771170be83acf536133d41b997707028dcf2f5f66a9ff7"
+  },
+  "nodeGroups": [],
+  "id": "oF6wZ4PE62OMb2EB",
+  "tags": []
+}
